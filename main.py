@@ -1,22 +1,34 @@
 from flask import Flask, jsonify, render_template, request
 from database import db, Cafe
+from dotenv import load_dotenv
 import random
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
+
+API_KEY = os.getenv("API_KEY")
 
 # Connect to Database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cafes.db'
 db.init_app(app)
 
+with app.app_context():
+    db.create_all()
+
+
 @app.route('/')
 def home():
     return render_template('index.html')
+
 
 @app.route('/all')
 def get_all_cafes():
     result = db.session.execute(db.select(Cafe))
     all_cafes = result.scalars().all()
     return jsonify(cafes=[cafe.to_dict() for cafe in all_cafes])
+
 
 @app.route('/random')
 def get_random_cafe():
@@ -39,6 +51,7 @@ def get_random_cafe():
         }
     )
 
+
 @app.route('/search')
 def get_cafe_by_location():
     query_location = request.args.get('loc')
@@ -48,7 +61,8 @@ def get_cafe_by_location():
         return jsonify(cafes=[cafe.to_dict() for cafe in cafes])
     else:
         return jsonify({"Not Found": "Sorry, we don't have a cafe at that location"}), 404
-    
+
+
 @app.route('/add', methods=['POST'])
 def add_cafe():
     new_cafe = Cafe(
@@ -67,6 +81,7 @@ def add_cafe():
     db.session.commit()
     return jsonify(response={"success": "Successfully added the new cafe"}), 201
 
+
 @app.route('/update-price/<int:cafe_id>', methods=['PATCH'])
 def update_price(cafe_id):
     cafe = db.get_or_404(Cafe, cafe_id)
@@ -77,6 +92,23 @@ def update_price(cafe_id):
         return jsonify(response={"success": f"Updated price of {cafe.name} to ${new_price}"})
     else:
         return jsonify(error={"Not Found": "Sorry a cafe with that id was not found in the database."})
+    
+
+@app.route('/report-closed/<int:cafe_id>', methods=['DELETE'])
+def delete_cafe(cafe_id):
+    api_key = request.args.get('api_key')
+    if api_key == API_KEY:
+        cafe = db.get_or_404(Cafe, cafe_id)
+        if cafe:
+            db.session.delete(cafe)
+            db.session.commit()
+            return jsonify(response={"success": "Sucessfully deleted the cafe"}), 200
+        else:
+            return jsonify(error={"Not Found": "Sorry a cafe with that id was not found in the database."}), 404
+    else:
+        return jsonify(error={"error": "Sorry, that's not allowed. Make sure you have the correct API key."}), 403
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
