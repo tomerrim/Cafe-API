@@ -39,5 +39,15 @@ def get_random_cafe():
         }
     )
 
+@app.route('/search')
+def get_cafe_by_location():
+    query_location = request.args.get('loc')
+    result = db.session.execute(db.select(Cafe).where(Cafe.location == query_location))
+    cafes = result.scalars().all()
+    if cafes:
+        return jsonify(cafes=[cafe.to_dict() for cafe in cafes])
+    else:
+        return jsonify({"Not Found": "Sorry, we don't have a cafe at that location"}), 404
+
 if __name__ == '__main__':
     app.run(debug=True)
